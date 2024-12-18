@@ -32,9 +32,11 @@ public class MeshCreatorEditor : Editor
 
         DrawMeshTypeInspector(meshCreatorScript);
 
-        if (GUILayout.Button("Build"))
+        if (GUILayout.Button("Build GameObject"))
         {
-            BuildSelectedMesh(meshCreatorScript);
+            var meshBase = BuildSelectedMesh(meshCreatorScript);
+            Selection.activeObject = meshBase;
+            EditorGUIUtility.PingObject(meshBase);
         }
     }
 
@@ -288,10 +290,10 @@ public class MeshCreatorEditor : Editor
 
     #region Building The Mesh
 
-    private void BuildSelectedMesh(MeshCreator meshCreator)
+    private MeshBase BuildSelectedMesh(MeshCreator meshCreator)
     {
-        MeshBase createdMesh = BuildMesh(meshCreator);
-        if (createdMesh != null)
+        var createdMesh = BuildMesh(meshCreator);
+        if (createdMesh)
         {
             if (meshCreator.setRandomColor)
             {
@@ -300,6 +302,8 @@ public class MeshCreatorEditor : Editor
             createdMesh.SetPhysicsMaterialProperties(meshCreator.bounciness, meshCreator.friction);
             Undo.RegisterCreatedObjectUndo(createdMesh, "creating " + createdMesh.name);
         }
+        
+        return createdMesh;
     }
 
     private MeshBase BuildMesh(MeshCreator meshCreator)

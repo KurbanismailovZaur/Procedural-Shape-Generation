@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using UnityEngine;
 using UnityEditor;
 using PSG;
@@ -16,67 +17,64 @@ using PSG;
 [CustomEditor(typeof(MeshBase), true)]
 public class SaveMeshEditor : Editor
 {
-    //standard override
     public override void OnInspectorGUI()
     {
         DrawDefaultInspector();
 
-        MeshBase targetScript = (MeshBase)target;
-        //save MeshFilter's content
-        if (GUILayout.Button("Save Mesh Only"))
-        {
-            SaveMeshToFile(targetScript.C_MF.sharedMesh, targetScript.name);
-        }
-        //save GameObject
-        if (GUILayout.Button("Save Prefab"))
-        {
-            SavePrefabToFile(targetScript, targetScript.name);
-        }
-        //rebuild mesh from its values
-        if (GUILayout.Button("Rebuild"))
-        {
-            targetScript.BuildMesh();
-        }
+        var meshBase = (MeshBase)target;
+        
+        if (GUILayout.Button("Save Mesh As Asset")) 
+            SaveMeshAsAssetWithSaveFileDialog(meshBase, meshBase.name);
+
+        if (GUILayout.Button("Save GameObject As Prefab")) 
+            SaveGameObjectAsPrefabWithSaveFileDialog(meshBase, meshBase.name);
     }
 
-    //save MeshFilter's mesh
-    private void SaveMeshToFile(Mesh mesh, string name)
+    private bool TrySelectFilePlaceInDialog(string title, string filename, string extension, out string path)
     {
-        CheckFolders("Saved meshes");
-
-        //make a copy of Mesh to prevent sharing it among other MeshFilters
-        Mesh meshCopy = Instantiate(mesh);
-        try
-        {
-            AssetDatabase.CreateAsset(meshCopy, "Assets/PSG/Saved meshes/" + name + ".asset");
-            Debug.Log("Mesh \"" + name + ".asset\" saved succesfully at PSG/Saved meshes");
-        }
-        catch (Exception e)
-        {
-            Debug.LogError("PSG::Mesh Generation failed! ("+e+")");
-        }
+        path = EditorUtility.SaveFilePanel(title, null, filename, extension);
+        return !string.IsNullOrEmpty(path);
     }
 
-    //save entire GameObject
-    private void SavePrefabToFile(MeshBase meshBase, string name)
+    private void SaveMeshAsAssetWithSaveFileDialog(MeshBase meshBase, string name)
     {
-        CheckFolders("Saved prefabs");
+        if (!TrySelectFilePlaceInDialog("Save Mesh To Asset", name, "asset", out var path))
+            return;
 
-        //mesh and it's material need to be saved too
-        SaveMeshToFile(meshBase.C_MF.sharedMesh, name + "'mesh");
-
-        try
-        {
-            PrefabUtility.CreatePrefab("Assets/PSG/Saved prefabs/" + name + ".prefab", meshBase.gameObject);
-            Debug.Log("Prefab \"" + name + ".prefab\" saved succesfully at PSG/Saved prefabs");
-        }
-        catch (Exception e)
-        {
-            Debug.LogError("Saving prefab error! "+e);
-        }
+        path = path.Substring(path.IndexOf("Assets", StringComparison.Ordinal));
+        
+        SaveMeshAsAsset(meshBase, path);
     }
 
-    //save material if necessary
+    private void SaveMeshAsAsset(MeshBase meshBase, string path)
+    {
+        // Make a copy of Mesh to prevent sharing it among other MeshFilters
+        var meshCopy = Instantiate(meshBase.C_MF.sharedMesh);
+        
+        AssetDatabase.CreateAsset(meshCopy, path);
+        var meshAsset = AssetDatabase.LoadAssetAtPath<Mesh>(path);
+        meshBase.C_MF.sharedMesh = meshCopy;
+        
+        EditorGUIUtility.PingObject(meshAsset);
+    } 
+
+    private void SaveGameObjectAsPrefabWithSaveFileDialog(MeshBase meshBase, string name)
+    {
+        if (!TrySelectFilePlaceInDialog("Save As Prefab", name, "prefab", out var path))
+            return;
+
+        var meshPath = Path.ChangeExtension(path.Substring(path.IndexOf("Assets", StringComparison.Ordinal)), ".asset");
+        
+        // Mesh need to be saved too
+        SaveMeshAsAsset(meshBase, meshPath);
+
+        if (File.Exists(path))
+            AssetDatabase.DeleteAsset(path);
+        
+        var prefab = PrefabUtility.SaveAsPrefabAssetAndConnect(meshBase.gameObject, path, InteractionMode.AutomatedAction);
+        EditorGUIUtility.PingObject(prefab);
+    }
+
     private void SaveMaterial(Material material, string name)
     {
         if (string.IsNullOrEmpty(AssetDatabase.GetAssetPath(material)))
@@ -84,23 +82,4 @@ public class SaveMeshEditor : Editor
             AssetDatabase.CreateAsset(material, "Assets/PSG/Saved meshes/" + name + "'s material.asset");
         }
     }
-    
-    //utility: check if folder exists in PSG directory
-    private void CheckFolders(string targetFolder)
-    {
-        const string savePath = "Assets/PSG";
-
-        //check for PSG
-        if (!AssetDatabase.IsValidFolder(savePath))
-        {
-            AssetDatabase.CreateFolder("Assets", "PSG");
-        }
-
-        //check for {targetFolder}
-        if(!AssetDatabase.IsValidFolder("Assets/PSG/"+ targetFolder))
-        {
-            AssetDatabase.CreateFolder(savePath, targetFolder);
-        }
-    }
-
 }
