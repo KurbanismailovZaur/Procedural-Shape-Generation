@@ -18,7 +18,7 @@ namespace PSG
             {
                 if (cachedDefaultMaterial == null)
                 {
-                    cachedDefaultMaterial = new Material(Shader.Find("Sprites/Default"));
+                    cachedDefaultMaterial = new Material(Shader.Find("PSG/Unlit/Color"));
                 }
                 return cachedDefaultMaterial;
             }

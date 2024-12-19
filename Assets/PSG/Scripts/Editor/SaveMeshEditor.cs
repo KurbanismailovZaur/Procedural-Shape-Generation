@@ -32,7 +32,7 @@ public class SaveMeshEditor : Editor
 
     private bool TrySelectFilePlaceInDialog(string title, string filename, string extension, out string path)
     {
-        path = EditorUtility.SaveFilePanel(title, null, filename, extension);
+        path = EditorUtility.SaveFilePanel(title, Application.dataPath, filename, extension);
         return !string.IsNullOrEmpty(path);
     }
 
@@ -46,17 +46,33 @@ public class SaveMeshEditor : Editor
         SaveMeshAsAsset(meshBase, path);
     }
 
-    private void SaveMeshAsAsset(MeshBase meshBase, string path)
+    private void SaveMeshAsAsset(MeshBase meshBase, string localPath)
     {
         // Make a copy of Mesh to prevent sharing it among other MeshFilters
         var meshCopy = Instantiate(meshBase.C_MF.sharedMesh);
-        
-        AssetDatabase.CreateAsset(meshCopy, path);
-        var meshAsset = AssetDatabase.LoadAssetAtPath<Mesh>(path);
-        meshBase.C_MF.sharedMesh = meshCopy;
+
+        AssetDatabase.CreateAsset(meshCopy, localPath);
+        var meshAsset = AssetDatabase.LoadAssetAtPath<Mesh>(localPath);
+        meshBase.C_MF.sharedMesh = meshAsset;
         
         EditorGUIUtility.PingObject(meshAsset);
-    } 
+    }
+
+    private void SaveMaterialAsAsset(MeshBase meshBase, string localPath)
+    {
+        AssetDatabase.CreateAsset(meshBase.C_MR.sharedMaterial, localPath);
+        var materialAsset = AssetDatabase.LoadAssetAtPath<Material>(localPath);
+        meshBase.C_MR.sharedMaterial = materialAsset;
+    }
+    
+    private void SavePhysicsMaterial2DAsAsset(MeshBase meshBase, string localPath)
+    {
+        var collider2D = meshBase.GetComponent<Collider2D>();
+        AssetDatabase.CreateAsset(collider2D.sharedMaterial, localPath);
+        var physicsMaterialAsset = AssetDatabase.LoadAssetAtPath<PhysicsMaterial2D>(localPath);
+        collider2D.sharedMaterial = physicsMaterialAsset;
+    }
+
 
     private void SaveGameObjectAsPrefabWithSaveFileDialog(MeshBase meshBase, string name)
     {
@@ -64,22 +80,16 @@ public class SaveMeshEditor : Editor
             return;
 
         var meshPath = Path.ChangeExtension(path.Substring(path.IndexOf("Assets", StringComparison.Ordinal)), ".asset");
-        
-        // Mesh need to be saved too
         SaveMeshAsAsset(meshBase, meshPath);
 
-        if (File.Exists(path))
-            AssetDatabase.DeleteAsset(path);
-        
-        var prefab = PrefabUtility.SaveAsPrefabAssetAndConnect(meshBase.gameObject, path, InteractionMode.AutomatedAction);
-        EditorGUIUtility.PingObject(prefab);
-    }
+        var materialPath = Path.ChangeExtension(meshPath, ".mat");
+        SaveMaterialAsAsset(meshBase, materialPath);
 
-    private void SaveMaterial(Material material, string name)
-    {
-        if (string.IsNullOrEmpty(AssetDatabase.GetAssetPath(material)))
-        {
-            AssetDatabase.CreateAsset(material, "Assets/PSG/Saved meshes/" + name + "'s material.asset");
-        }
+        var physicsMaterial2DPath = Path.ChangeExtension(meshPath, ".physicsMaterial2D");
+        SavePhysicsMaterial2DAsAsset(meshBase, physicsMaterial2DPath);
+
+        var prefab = PrefabUtility.SaveAsPrefabAssetAndConnect(meshBase.gameObject, path, InteractionMode.AutomatedAction);
+        prefab.GetComponent<MeshFilter>().sharedMesh = meshBase.C_MF.sharedMesh;
+        EditorGUIUtility.PingObject(prefab);
     }
 }
