@@ -23,6 +23,10 @@ public class MeshCreatorEditor : Editor
         convexSplinePointList = new Vector2ListWrapper(serializedObject, "convexSplinePoints", "Convex Spline Points");
     }
 
+    private bool _autogenerate;
+    
+    private MeshBase _generatedMesh;
+    
     //standard override
     public override void OnInspectorGUI()
     {
@@ -32,6 +36,15 @@ public class MeshCreatorEditor : Editor
 
         DrawMeshTypeInspector(meshCreatorScript);
 
+        if (_autogenerate = GUILayout.Toggle(_autogenerate, "Auto Generate Mesh"))
+        {
+            if (_generatedMesh != null)
+                DestroyImmediate(_generatedMesh.gameObject);
+            
+            _generatedMesh = BuildSelectedMesh(meshCreatorScript);
+            return;
+        }
+        
         if (GUILayout.Button("Build GameObject"))
         {
             var meshBase = BuildSelectedMesh(meshCreatorScript);
@@ -42,9 +55,124 @@ public class MeshCreatorEditor : Editor
 
     private void OnSceneGUI()
     {
-        MeshCreator meshCreator = (MeshCreator) target;
-        DrawHandles(meshCreator);
+        MeshCreator meshCreator = (MeshCreator)target;
+
+        // Получаем состояние клавиш
+        Event e = Event.current;
+        bool isShiftPressed = e.shift;
+        bool isCtrlPressed = e.control;
+
+        // Рисуем существующие Handles или кружочки
+        if (meshCreator.meshType == MeshCreator.MeshType.TriangulatedMesh)
+        {
+            for (int i = 0; i < meshCreator.triangulatedPoints.Count; i++)
+            {
+                Vector2 worldPoint = meshCreator.triangulatedPoints[i] + (Vector2)meshCreator.transform.position;
+
+                if (isShiftPressed || isCtrlPressed)
+                {
+                    // Рисуем кружочек вместо стандартных Handles
+                    Handles.color = isShiftPressed ? Color.green : Color.red; // Цвет зависит от режима
+                    float size = HandleUtility.GetHandleSize(worldPoint) * 0.1f;
+                    Handles.CircleHandleCap(0, worldPoint, Quaternion.identity, size, EventType.Repaint);
+                }
+                else
+                {
+                    // Стандартные Handles
+                    meshCreator.triangulatedPoints[i] = Handles.DoPositionHandle(worldPoint, Quaternion.identity) - (Vector3)(Vector2)meshCreator.transform.position;
+                }
+            }
+        }
+
+        // Работа с добавлением или удалением точек
+        Vector2 mousePosition = HandleUtility.GUIPointToWorldRay(Event.current.mousePosition).origin;
+
+        if (e.type == EventType.MouseDown && e.button == 0)
+        {
+            if (isShiftPressed)
+            {
+                AddVertex(meshCreator, mousePosition);
+            }
+            else if (isCtrlPressed)
+            {
+                RemoveVertex(meshCreator, mousePosition);
+            }
+        }
     }
+
+    // Метод добавления вершины
+    private void AddVertex(MeshCreator meshCreator, Vector2 mousePosition)
+    {
+        int indexA = -1, indexB = -1;
+        float minDistance = float.MaxValue;
+        Vector2 newPoint = Vector2.zero;
+
+        // Найти ближайший отрезок
+        for (int i = 0; i < meshCreator.triangulatedPoints.Count; i++)
+        {
+            int nextIndex = (i + 1) % meshCreator.triangulatedPoints.Count; // Следующая точка (замкнутый контур)
+            Vector2 pointA = meshCreator.triangulatedPoints[i] + (Vector2)meshCreator.transform.position;
+            Vector2 pointB = meshCreator.triangulatedPoints[nextIndex] + (Vector2)meshCreator.transform.position;
+
+            // Найти ближайшую точку на линии
+            Vector2 closestPoint = GetClosestPointOnLineSegment(pointA, pointB, mousePosition);
+            float distance = Vector2.Distance(mousePosition, closestPoint);
+
+            if (distance < minDistance && distance < 0.5f) // Проверяем порог расстояния
+            {
+                minDistance = distance;
+                indexA = i;
+                indexB = nextIndex;
+                newPoint = closestPoint - (Vector2)meshCreator.transform.position; // Локальная координата
+            }
+        }
+
+        // Добавить точку, если нашли подходящий отрезок
+        if (indexA != -1 && indexB != -1)
+        {
+            meshCreator.triangulatedPoints.Insert(indexB, newPoint);
+            GUI.changed = true;
+            EditorUtility.SetDirty(meshCreator);
+        }
+    }
+
+    // Метод удаления вершины
+    private void RemoveVertex(MeshCreator meshCreator, Vector2 mousePosition)
+    {
+        int indexToRemove = -1;
+        float minDistance = float.MaxValue;
+
+        // Найти ближайшую вершину
+        for (int i = 0; i < meshCreator.triangulatedPoints.Count; i++)
+        {
+            Vector2 point = meshCreator.triangulatedPoints[i] + (Vector2)meshCreator.transform.position;
+            float distance = Vector2.Distance(mousePosition, point);
+
+            if (distance < minDistance && distance < 0.3f) // Проверяем порог расстояния
+            {
+                minDistance = distance;
+                indexToRemove = i;
+            }
+        }
+
+        // Удалить вершину, если нашли подходящую
+        if (indexToRemove != -1)
+        {
+            meshCreator.triangulatedPoints.RemoveAt(indexToRemove);
+            GUI.changed = true;
+            EditorUtility.SetDirty(meshCreator);
+        }
+    }
+
+    // Метод для нахождения ближайшей точки на отрезке
+    private Vector2 GetClosestPointOnLineSegment(Vector2 a, Vector2 b, Vector2 p)
+    {
+        Vector2 ab = b - a;
+        float t = Vector2.Dot(p - a, ab) / Vector2.Dot(ab, ab);
+        t = Mathf.Clamp01(t);
+        return a + t * ab;
+    }
+
 
     private void DrawHandles(MeshCreator meshCreator)
     {
