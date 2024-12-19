@@ -60,7 +60,9 @@ public class SaveMeshEditor : Editor
 
     private void SaveMaterialAsAsset(MeshBase meshBase, string localPath)
     {
-        AssetDatabase.CreateAsset(meshBase.C_MR.sharedMaterial, localPath);
+        var materialCopy = Instantiate(meshBase.C_MR.sharedMaterial);
+
+        AssetDatabase.CreateAsset(materialCopy, localPath);
         var materialAsset = AssetDatabase.LoadAssetAtPath<Material>(localPath);
         meshBase.C_MR.sharedMaterial = materialAsset;
     }
@@ -68,7 +70,9 @@ public class SaveMeshEditor : Editor
     private void SavePhysicsMaterial2DAsAsset(MeshBase meshBase, string localPath)
     {
         var collider2D = meshBase.GetComponent<Collider2D>();
-        AssetDatabase.CreateAsset(collider2D.sharedMaterial, localPath);
+        var physicsMaterialCopy = Instantiate(collider2D.sharedMaterial);
+
+        AssetDatabase.CreateAsset(physicsMaterialCopy, localPath);
         var physicsMaterialAsset = AssetDatabase.LoadAssetAtPath<PhysicsMaterial2D>(localPath);
         collider2D.sharedMaterial = physicsMaterialAsset;
     }
