@@ -57,6 +57,12 @@ public class MeshCreatorEditor : Editor
     {
         MeshCreator meshCreator = (MeshCreator)target;
 
+        if (meshCreator.meshType != MeshCreator.MeshType.TriangulatedMesh)
+        {
+            DrawHandles(meshCreator);
+            return;
+        }
+        
         // Получаем состояние клавиш
         Event e = Event.current;
         bool isShiftPressed = e.shift;

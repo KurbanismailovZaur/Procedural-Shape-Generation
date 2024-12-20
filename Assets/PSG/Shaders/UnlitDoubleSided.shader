@@ -7,10 +7,7 @@ Shader "PSG/Unlit/Color"
 
     SubShader
     {
-        Tags
-        {
-            "RenderType"="Opaque"
-        }
+        Tags { "RenderType"="Opaque" }
         Cull Off
 
         Pass
@@ -35,4 +32,4 @@ Shader "PSG/Unlit/Color"
             ENDCG
         }
     }
-}
+} 
